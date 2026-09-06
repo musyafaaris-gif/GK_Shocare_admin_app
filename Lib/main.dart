@@ -22,6 +22,19 @@ class AdminApp extends StatelessWidget {
 const String firestoreProjectId = 'gk-shoecare';
 const String firestoreBase = 'https://firestore.googleapis.com/v1/projects/$firestoreProjectId/databases/(default)/documents';
 
+const List<String> daftarStatus = ['Sudah Diambil', 'Dikerjakan', 'Sudah Selesai'];
+
+Color warnaStatus(String status) {
+  switch (status) {
+    case 'Dikerjakan':
+      return Colors.orange[700]!;
+    case 'Sudah Selesai':
+      return Colors.green[700]!;
+    default:
+      return Colors.blueGrey;
+  }
+}
+
 String formatRupiah(int angka) {
   final s = angka.toString();
   final buffer = StringBuffer();
@@ -152,6 +165,9 @@ class AdminHomePage extends StatelessWidget {
 }
 
 class Pesanan {
+  final String id;
+  final String namaCustomer;
+  final String noWaCustomer;
   final String jenisBarang;
   final String treatment;
   final bool warnaPutih;
@@ -160,9 +176,13 @@ class Pesanan {
   final int subtotal;
   final String tanggalSelesai;
   final String fotoUrl;
+  final String status;
   final DateTime createdAt;
 
   Pesanan({
+    required this.id,
+    required this.namaCustomer,
+    required this.noWaCustomer,
     required this.jenisBarang,
     required this.treatment,
     required this.warnaPutih,
@@ -171,10 +191,13 @@ class Pesanan {
     required this.subtotal,
     required this.tanggalSelesai,
     required this.fotoUrl,
+    required this.status,
     required this.createdAt,
   });
 
-  factory Pesanan.fromFirestore(Map<String, dynamic> fields) {
+  factory Pesanan.fromFirestore(Map<String, dynamic> doc) {
+    final fields = doc['fields'] as Map<String, dynamic>;
+    final name = doc['name'] as String;
     String getString(String key) => fields[key]?['stringValue'] ?? '';
     int getInt(String key) => int.tryParse(fields[key]?['integerValue']?.toString() ?? '0') ?? 0;
     bool getBool(String key) => fields[key]?['booleanValue'] ?? false;
@@ -185,8 +208,12 @@ class Pesanan {
     } catch (_) {
       createdAt = DateTime.now();
     }
+    final statusMentah = getString('status');
 
     return Pesanan(
+      id: name.split('/').last,
+      namaCustomer: getString('namaCustomer'),
+      noWaCustomer: getString('noWaCustomer'),
       jenisBarang: getString('jenisBarang'),
       treatment: getString('treatment'),
       warnaPutih: getBool('warnaPutih'),
@@ -195,6 +222,7 @@ class Pesanan {
       subtotal: getInt('subtotal'),
       tanggalSelesai: getString('tanggalSelesai'),
       fotoUrl: getString('fotoUrl'),
+      status: statusMentah.isEmpty ? 'Sudah Diambil' : statusMentah,
       createdAt: createdAt,
     );
   }
@@ -231,7 +259,7 @@ class _DaftarPesananPageState extends State<DaftarPesananPage> {
       }
       final data = jsonDecode(response.body);
       final docs = (data['documents'] as List?) ?? [];
-      final hasil = docs.map((doc) => Pesanan.fromFirestore(doc['fields'] as Map<String, dynamic>)).toList();
+      final hasil = docs.map((doc) => Pesanan.fromFirestore(doc)).toList();
       hasil.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       setState(() {
         daftarPesanan = hasil;
@@ -243,6 +271,41 @@ class _DaftarPesananPageState extends State<DaftarPesananPage> {
         sedangMemuat = false;
       });
     }
+  }
+
+  Future<void> ubahStatus(Pesanan p, String statusBaru) async {
+    setState(() {
+      final index = daftarPesanan.indexWhere((x) => x.id == p.id);
+      if (index != -1) {
+        daftarPesanan[index] = Pesanan(
+          id: p.id,
+          namaCustomer: p.namaCustomer,
+          noWaCustomer: p.noWaCustomer,
+          jenisBarang: p.jenisBarang,
+          treatment: p.treatment,
+          warnaPutih: p.warnaPutih,
+          jumlah: p.jumlah,
+          hargaSatuan: p.hargaSatuan,
+          subtotal: p.subtotal,
+          tanggalSelesai: p.tanggalSelesai,
+          fotoUrl: p.fotoUrl,
+          status: statusBaru,
+          createdAt: p.createdAt,
+        );
+      }
+    });
+    final uri = Uri.parse('$firestoreBase/pesanan/${p.id}').replace(queryParameters: {
+      'updateMask.fieldPaths': ['status'],
+    });
+    await http.patch(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'fields': {
+          'status': {'stringValue': statusBaru},
+        }
+      }),
+    );
   }
 
   @override
@@ -274,42 +337,74 @@ class _DaftarPesananPageState extends State<DaftarPesananPage> {
                             margin: const EdgeInsets.only(bottom: 12),
                             child: Padding(
                               padding: const EdgeInsets.all(12),
-                              child: Row(
+                              child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Image.network(
-                                      p.fotoUrl,
-                                      width: 70,
-                                      height: 70,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) => Container(
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.network(
+                                          p.fotoUrl,
                                           width: 70,
                                           height: 70,
-                                          color: Colors.grey[300],
-                                          child: const Icon(Icons.broken_image)),
-                                      loadingBuilder: (context, child, progress) => progress == null
-                                          ? child
-                                          : const SizedBox(
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) => Container(
                                               width: 70,
                                               height: 70,
-                                              child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
-                                    ),
+                                              color: Colors.grey[300],
+                                              child: const Icon(Icons.broken_image)),
+                                          loadingBuilder: (context, child, progress) => progress == null
+                                              ? child
+                                              : const SizedBox(
+                                                  width: 70,
+                                                  height: 70,
+                                                  child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text('${p.jenisBarang} - ${p.treatment}',
+                                                style: const TextStyle(fontWeight: FontWeight.bold)),
+                                            Text('${p.jumlah}x${p.warnaPutih ? ' (putih)' : ''} • ${formatRupiah(p.subtotal)}'),
+                                            if (p.namaCustomer.isNotEmpty)
+                                              Text('${p.namaCustomer} • ${p.noWaCustomer}',
+                                                  style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                                            Text('Selesai: ${p.tanggalSelesai}',
+                                                style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                                            Text('Masuk: ${formatWaktu(p.createdAt)}',
+                                                style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text('${p.jenisBarang} - ${p.treatment}',
-                                            style: const TextStyle(fontWeight: FontWeight.bold)),
-                                        Text('${p.jumlah}x${p.warnaPutih ? ' (putih)' : ''} • ${formatRupiah(p.subtotal)}'),
-                                        Text('Selesai: ${p.tanggalSelesai}',
-                                            style: const TextStyle(fontSize: 12, color: Colors.black54)),
-                                        Text('Masuk: ${formatWaktu(p.createdAt)}',
-                                            style: const TextStyle(fontSize: 12, color: Colors.black54)),
-                                      ],
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                                    decoration: BoxDecoration(
+                                        color: warnaStatus(p.status), borderRadius: BorderRadius.circular(8)),
+                                    child: DropdownButtonHideUnderline(
+                                      child: DropdownButton<String>(
+                                        value: p.status,
+                                        isExpanded: true,
+                                        dropdownColor: Colors.white,
+                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                        icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
+                                        items: daftarStatus
+                                            .map((s) => DropdownMenuItem(
+                                                  value: s,
+                                                  child: Text(s, style: TextStyle(color: warnaStatus(s))),
+                                                ))
+                                            .toList(),
+                                        onChanged: (val) {
+                                          if (val != null) ubahStatus(p, val);
+                                        },
+                                      ),
                                     ),
                                   ),
                                 ],
