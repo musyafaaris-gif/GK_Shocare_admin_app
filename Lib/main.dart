@@ -54,6 +54,14 @@ String formatWaktu(DateTime d) {
   return '${d.day} ${bulan[d.month]} ${d.year}, $jam:$menit';
 }
 
+double angkaDouble(Map<String, dynamic> fields, String key) {
+  final f = fields[key];
+  if (f == null) return 0;
+  if (f['doubleValue'] != null) return (f['doubleValue'] as num).toDouble();
+  if (f['integerValue'] != null) return double.tryParse(f['integerValue'].toString()) ?? 0;
+  return 0;
+}
+
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -144,55 +152,86 @@ class AdminHomePage extends StatelessWidget {
         ],
       ),
       body: SafeArea(
-        child: Padding(
+        child: ListView(
           padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.receipt_long),
-                  title: const Text('Pesanan Masuk', style: TextStyle(fontWeight: FontWeight.bold)),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => const DaftarPesananPage()));
-                  },
-                ),
+          children: [
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.receipt_long),
+                title: const Text('Pesanan Masuk', style: TextStyle(fontWeight: FontWeight.bold)),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const DaftarPesananPage()));
+                },
               ),
-              const SizedBox(height: 12),
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.price_change),
-                  title: const Text('Kelola Treatment & Harga', style: TextStyle(fontWeight: FontWeight.bold)),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => const KelolaTreatmentPage()));
-                  },
-                ),
+            ),
+            const SizedBox(height: 12),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.price_change),
+                title: const Text('Kelola Treatment & Harga', style: TextStyle(fontWeight: FontWeight.bold)),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const KelolaTreatmentPage()));
+                },
               ),
-              const SizedBox(height: 12),
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.category),
-                  title: const Text('Kelola Jenis Barang', style: TextStyle(fontWeight: FontWeight.bold)),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => const KelolaJenisBarangPage()));
-                  },
-                ),
+            ),
+            const SizedBox(height: 12),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.category),
+                title: const Text('Kelola Jenis Barang', style: TextStyle(fontWeight: FontWeight.bold)),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const KelolaJenisBarangPage()));
+                },
               ),
-              const SizedBox(height: 12),
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.inbox),
-                  title: const Text('Kelola Loker', style: TextStyle(fontWeight: FontWeight.bold)),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => const KelolaLokerPage()));
-                  },
-                ),
+            ),
+            const SizedBox(height: 12),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.inbox),
+                title: const Text('Kelola Loker', style: TextStyle(fontWeight: FontWeight.bold)),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const KelolaLokerPage()));
+                },
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 12),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.delivery_dining),
+                title: const Text('Kelola Ongkir', style: TextStyle(fontWeight: FontWeight.bold)),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const KelolaOngkirPage()));
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.location_on),
+                title: const Text('Kelola Lokasi Toko', style: TextStyle(fontWeight: FontWeight.bold)),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const KelolaLokasiPage()));
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.account_balance_wallet),
+                title: const Text('Pencatatan Keuangan', style: TextStyle(fontWeight: FontWeight.bold)),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const KeuanganPage()));
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -342,6 +381,8 @@ class Pesanan {
   final String fotoUrl;
   final String status;
   final String lokerNomor;
+  final String metodePesan;
+  final int ongkir;
   final DateTime createdAt;
 
   Pesanan({
@@ -358,6 +399,8 @@ class Pesanan {
     required this.fotoUrl,
     required this.status,
     required this.lokerNomor,
+    required this.metodePesan,
+    required this.ongkir,
     required this.createdAt,
   });
 
@@ -390,6 +433,8 @@ class Pesanan {
       fotoUrl: getString('fotoUrl'),
       status: statusMentah.isEmpty ? 'Sudah Diambil' : statusMentah,
       lokerNomor: getString('lokerNomor'),
+      metodePesan: getString('metodePesan'),
+      ongkir: getInt('ongkir'),
       createdAt: createdAt,
     );
   }
@@ -458,6 +503,8 @@ class _DaftarPesananPageState extends State<DaftarPesananPage> {
           fotoUrl: p.fotoUrl,
           status: statusBaru,
           lokerNomor: p.lokerNomor,
+          metodePesan: p.metodePesan,
+          ongkir: p.ongkir,
           createdAt: p.createdAt,
         );
       }
@@ -474,6 +521,23 @@ class _DaftarPesananPageState extends State<DaftarPesananPage> {
         }
       }),
     );
+  }
+
+  Future<void> hapusPesanan(Pesanan p) async {
+    final konfirmasi = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hapus pesanan?'),
+        content: Text('Pesanan ${p.jenisBarang} - ${p.treatment} akan dihapus permanen. Yakin?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Ya, Hapus')),
+        ],
+      ),
+    );
+    if (konfirmasi != true) return;
+    await http.delete(Uri.parse('$firestoreBase/pesanan/${p.id}'));
+    setState(() => daftarPesanan.removeWhere((x) => x.id == p.id));
   }
 
   @override
@@ -549,8 +613,11 @@ class _DaftarPesananPageState extends State<DaftarPesananPage> {
                                               if (p.namaCustomer.isNotEmpty)
                                                 Text('${p.namaCustomer} • ${p.noWaCustomer}',
                                                     style: const TextStyle(fontSize: 12, color: Colors.black87)),
-                                              if (p.lokerNomor.isNotEmpty)
-                                                Text('Loker No. ${p.lokerNomor}',
+                                              if (p.metodePesan.isNotEmpty)
+                                                Text(
+                                                    p.metodePesan == 'Loker'
+                                                        ? 'Loker No. ${p.lokerNomor}'
+                                                        : '${p.metodePesan}${p.ongkir > 0 ? ' (Ongkir ${formatRupiah(p.ongkir)})' : ''}',
                                                     style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                                               Text('Selesai: ${p.tanggalSelesai}',
                                                   style: const TextStyle(fontSize: 12, color: Colors.black54)),
@@ -558,6 +625,10 @@ class _DaftarPesananPageState extends State<DaftarPesananPage> {
                                                   style: const TextStyle(fontSize: 12, color: Colors.black54)),
                                             ],
                                           ),
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                          onPressed: () => hapusPesanan(p),
                                         ),
                                       ],
                                     ),
@@ -896,6 +967,576 @@ class _KelolaLokerPageState extends State<KelolaLokerPage> {
                       );
                     },
                   ),
+      ),
+    );
+  }
+}
+
+class OngkirTier {
+  final String id;
+  final double jarakMin;
+  final double jarakMax;
+  final int tarif;
+  OngkirTier({required this.id, required this.jarakMin, required this.jarakMax, required this.tarif});
+
+  factory OngkirTier.fromFirestore(Map<String, dynamic> doc) {
+    final fields = doc['fields'] as Map<String, dynamic>;
+    final name = doc['name'] as String;
+    int getInt(String key) => int.tryParse(fields[key]?['integerValue']?.toString() ?? '0') ?? 0;
+    return OngkirTier(
+      id: name.split('/').last,
+      jarakMin: angkaDouble(fields, 'jarakMin'),
+      jarakMax: angkaDouble(fields, 'jarakMax'),
+      tarif: getInt('tarif'),
+    );
+  }
+}
+
+class KelolaOngkirPage extends StatefulWidget {
+  const KelolaOngkirPage({super.key});
+
+  @override
+  State<KelolaOngkirPage> createState() => _KelolaOngkirPageState();
+}
+
+class _KelolaOngkirPageState extends State<KelolaOngkirPage> {
+  List<OngkirTier> daftar = [];
+  bool sedangMemuat = true;
+
+  @override
+  void initState() {
+    super.initState();
+    muatData();
+  }
+
+  Future<void> muatData() async {
+    setState(() => sedangMemuat = true);
+    final response = await http.get(Uri.parse('$firestoreBase/ongkirTiers'));
+    final data = jsonDecode(response.body);
+    final docs = (data['documents'] as List?) ?? [];
+    final hasil = docs.map((doc) => OngkirTier.fromFirestore(doc)).toList();
+    hasil.sort((a, b) => a.jarakMin.compareTo(b.jarakMin));
+    setState(() {
+      daftar = hasil;
+      sedangMemuat = false;
+    });
+  }
+
+  Future<void> simpanTier({String? id, required double min, required double max, required int tarif}) async {
+    final body = jsonEncode({
+      'fields': {
+        'jarakMin': {'doubleValue': min},
+        'jarakMax': {'doubleValue': max},
+        'tarif': {'integerValue': tarif.toString()},
+      }
+    });
+    if (id == null) {
+      await http.post(Uri.parse('$firestoreBase/ongkirTiers'), headers: {'Content-Type': 'application/json'}, body: body);
+    } else {
+      final uri = Uri.parse('$firestoreBase/ongkirTiers/$id').replace(queryParameters: {
+        'updateMask.fieldPaths': ['jarakMin', 'jarakMax', 'tarif'],
+      });
+      await http.patch(uri, headers: {'Content-Type': 'application/json'}, body: body);
+    }
+    muatData();
+  }
+
+  Future<void> hapusTier(OngkirTier t) async {
+    final konfirmasi = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hapus tarif?'),
+        content: Text('Tarif ${t.jarakMin}-${t.jarakMax} km akan dihapus. Yakin?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Ya, Hapus')),
+        ],
+      ),
+    );
+    if (konfirmasi != true) return;
+    await http.delete(Uri.parse('$firestoreBase/ongkirTiers/${t.id}'));
+    muatData();
+  }
+
+  void bukaForm({OngkirTier? existing}) {
+    final minController = TextEditingController(text: existing?.jarakMin.toString() ?? '');
+    final maxController = TextEditingController(text: existing?.jarakMax.toString() ?? '');
+    final tarifController = TextEditingController(text: existing?.tarif.toString() ?? '');
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(left: 16, right: 16, top: 16, bottom: MediaQuery.of(context).viewInsets.bottom + 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(existing == null ? 'Tambah Tarif' : 'Edit Tarif',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              const SizedBox(height: 16),
+              TextField(
+                controller: minController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'Jarak Minimal (km)'),
+              ),
+              TextField(
+                controller: maxController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'Jarak Maksimal (km)'),
+              ),
+              TextField(
+                controller: tarifController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Tarif (Rp)'),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.black, foregroundColor: Colors.white),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    simpanTier(
+                      id: existing?.id,
+                      min: double.tryParse(minController.text) ?? 0,
+                      max: double.tryParse(maxController.text) ?? 0,
+                      tarif: int.tryParse(tarifController.text) ?? 0,
+                    );
+                  },
+                  child: const Text('Simpan'),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5B315),
+      appBar: AppBar(
+        title: const Text('Kelola Ongkir'),
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+      ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: Colors.black,
+        onPressed: () => bukaForm(),
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
+      body: SafeArea(
+        child: sedangMemuat
+            ? const Center(child: CircularProgressIndicator())
+            : daftar.isEmpty
+                ? const Center(child: Text('Belum ada tarif ongkir'))
+                : ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: daftar.length,
+                    itemBuilder: (context, index) {
+                      final t = daftar[index];
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          title: Text('${t.jarakMin} - ${t.jarakMax} km'),
+                          subtitle: Text(formatRupiah(t.tarif)),
+                          onTap: () => bukaForm(existing: t),
+                          trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () => hapusTier(t)),
+                        ),
+                      );
+                    },
+                  ),
+      ),
+    );
+  }
+}
+
+class KelolaLokasiPage extends StatefulWidget {
+  const KelolaLokasiPage({super.key});
+
+  @override
+  State<KelolaLokasiPage> createState() => _KelolaLokasiPageState();
+}
+
+class _KelolaLokasiPageState extends State<KelolaLokasiPage> {
+  final latController = TextEditingController();
+  final lngController = TextEditingController();
+  bool sedangMemuat = true;
+
+  @override
+  void initState() {
+    super.initState();
+    muatData();
+  }
+
+  Future<void> muatData() async {
+    try {
+      final response = await http.get(Uri.parse('$firestoreBase/pengaturan/toko'));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final fields = data['fields'] as Map<String, dynamic>? ?? {};
+        latController.text = angkaDouble(fields, 'lat').toString();
+        lngController.text = angkaDouble(fields, 'lng').toString();
+      }
+    } catch (_) {}
+    setState(() => sedangMemuat = false);
+  }
+
+  Future<void> simpanLokasi() async {
+    final lat = double.tryParse(latController.text);
+    final lng = double.tryParse(lngController.text);
+    if (lat == null || lng == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lat/Lng harus angka')));
+      return;
+    }
+    final uri = Uri.parse('$firestoreBase/pengaturan/toko').replace(queryParameters: {
+      'updateMask.fieldPaths': ['lat', 'lng'],
+    });
+    await http.patch(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'fields': {
+          'lat': {'doubleValue': lat},
+          'lng': {'doubleValue': lng},
+        }
+      }),
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lokasi toko disimpan')));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5B315),
+      appBar: AppBar(
+        title: const Text('Kelola Lokasi Toko'),
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+      ),
+      body: sedangMemuat
+          ? const Center(child: CircularProgressIndicator())
+          : SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                        'Ambil titik koordinat toko dari Google Maps (tekan lama di lokasi toko), lalu masukkan di sini.',
+                        style: TextStyle(fontSize: 13)),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: latController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                      decoration: InputDecoration(
+                          filled: true,
+                          fillColor: Colors.white,
+                          labelText: 'Latitude',
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: lngController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                      decoration: InputDecoration(
+                          filled: true,
+                          fillColor: Colors.white,
+                          labelText: 'Longitude',
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.black, foregroundColor: Colors.white, padding: const EdgeInsets.all(16)),
+                        onPressed: simpanLokasi,
+                        child: const Text('Simpan Lokasi'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+    );
+  }
+}
+
+class KeuanganDoc {
+  final String id;
+  final String jenis;
+  final String keterangan;
+  final int jumlah;
+  final DateTime createdAt;
+
+  KeuanganDoc({
+    required this.id,
+    required this.jenis,
+    required this.keterangan,
+    required this.jumlah,
+    required this.createdAt,
+  });
+
+  factory KeuanganDoc.fromFirestore(Map<String, dynamic> doc) {
+    final fields = doc['fields'] as Map<String, dynamic>;
+    final name = doc['name'] as String;
+    String getString(String key) => fields[key]?['stringValue'] ?? '';
+    int getInt(String key) => int.tryParse(fields[key]?['integerValue']?.toString() ?? '0') ?? 0;
+    DateTime createdAt;
+    try {
+      createdAt = DateTime.parse(fields['createdAt']?['timestampValue'] ?? '');
+    } catch (_) {
+      createdAt = DateTime.now();
+    }
+    return KeuanganDoc(
+      id: name.split('/').last,
+      jenis: getString('jenis'),
+      keterangan: getString('keterangan'),
+      jumlah: getInt('jumlah'),
+      createdAt: createdAt,
+    );
+  }
+}
+
+class KeuanganPage extends StatefulWidget {
+  const KeuanganPage({super.key});
+
+  @override
+  State<KeuanganPage> createState() => _KeuanganPageState();
+}
+
+class _KeuanganPageState extends State<KeuanganPage> {
+  List<KeuanganDoc> daftar = [];
+  bool sedangMemuat = true;
+
+  @override
+  void initState() {
+    super.initState();
+    muatData();
+  }
+
+  Future<void> muatData() async {
+    setState(() => sedangMemuat = true);
+    final response = await http.get(Uri.parse('$firestoreBase/keuangan'));
+    final data = jsonDecode(response.body);
+    final docs = (data['documents'] as List?) ?? [];
+    final hasil = docs.map((doc) => KeuanganDoc.fromFirestore(doc)).toList();
+    hasil.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    setState(() {
+      daftar = hasil;
+      sedangMemuat = false;
+    });
+  }
+
+  Future<void> tambahTransaksi(String jenis, String keterangan, int jumlah) async {
+    await http.post(
+      Uri.parse('$firestoreBase/keuangan'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'fields': {
+          'jenis': {'stringValue': jenis},
+          'keterangan': {'stringValue': keterangan},
+          'jumlah': {'integerValue': jumlah.toString()},
+          'createdAt': {'timestampValue': DateTime.now().toUtc().toIso8601String()},
+        }
+      }),
+    );
+    muatData();
+  }
+
+  Future<void> hapusTransaksi(KeuanganDoc k) async {
+    final konfirmasi = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hapus catatan?'),
+        content: Text('"${k.keterangan}" akan dihapus. Yakin?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Ya, Hapus')),
+        ],
+      ),
+    );
+    if (konfirmasi != true) return;
+    await http.delete(Uri.parse('$firestoreBase/keuangan/${k.id}'));
+    muatData();
+  }
+
+  void bukaFormTambah() {
+    final keteranganController = TextEditingController();
+    final jumlahController = TextEditingController();
+    String jenisTerpilih = 'masuk';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(left: 16, right: 16, top: 16, bottom: MediaQuery.of(context).viewInsets.bottom + 16),
+          child: StatefulBuilder(
+            builder: (context, setSheetState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Tambah Catatan', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: RadioListTile<String>(
+                          title: const Text('Masuk'),
+                          value: 'masuk',
+                          groupValue: jenisTerpilih,
+                          onChanged: (val) => setSheetState(() => jenisTerpilih = val!),
+                        ),
+                      ),
+                      Expanded(
+                        child: RadioListTile<String>(
+                          title: const Text('Keluar'),
+                          value: 'keluar',
+                          groupValue: jenisTerpilih,
+                          onChanged: (val) => setSheetState(() => jenisTerpilih = val!),
+                        ),
+                      ),
+                    ],
+                  ),
+                  TextField(
+                    controller: keteranganController,
+                    decoration: const InputDecoration(labelText: 'Keterangan'),
+                  ),
+                  TextField(
+                    controller: jumlahController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Jumlah (Rp)'),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.black, foregroundColor: Colors.white),
+                      onPressed: () {
+                        if (keteranganController.text.trim().isEmpty) return;
+                        final jumlah = int.tryParse(jumlahController.text) ?? 0;
+                        Navigator.pop(context);
+                        tambahTransaksi(jenisTerpilih, keteranganController.text.trim(), jumlah);
+                      },
+                      child: const Text('Simpan'),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final totalMasuk = daftar.where((k) => k.jenis == 'masuk').fold(0, (sum, k) => sum + k.jumlah);
+    final totalKeluar = daftar.where((k) => k.jenis == 'keluar').fold(0, (sum, k) => sum + k.jumlah);
+    final saldo = totalMasuk - totalKeluar;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5B315),
+      appBar: AppBar(
+        title: const Text('Pencatatan Keuangan'),
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: muatData)],
+      ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: Colors.black,
+        onPressed: bukaFormTambah,
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
+      body: SafeArea(
+        child: sedangMemuat
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Card(
+                      color: Colors.black,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text('Total Masuk', style: TextStyle(color: Colors.greenAccent)),
+                                Text(formatRupiah(totalMasuk),
+                                    style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text('Total Keluar', style: TextStyle(color: Colors.redAccent)),
+                                Text(formatRupiah(totalKeluar),
+                                    style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                            const Divider(color: Colors.white24, height: 20),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text('Saldo', style: TextStyle(color: Colors.white, fontSize: 16)),
+                                Text(formatRupiah(saldo),
+                                    style: const TextStyle(
+                                        color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: daftar.isEmpty
+                        ? const Center(child: Text('Belum ada catatan'))
+                        : ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            itemCount: daftar.length,
+                            itemBuilder: (context, index) {
+                              final k = daftar[index];
+                              final masuk = k.jenis == 'masuk';
+                              return Card(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                child: ListTile(
+                                  leading: Icon(masuk ? Icons.arrow_downward : Icons.arrow_upward,
+                                      color: masuk ? Colors.green : Colors.red),
+                                  title: Text(k.keterangan),
+                                  subtitle: Text(formatWaktu(k.createdAt)),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text('${masuk ? '+' : '-'}${formatRupiah(k.jumlah)}',
+                                          style: TextStyle(
+                                              color: masuk ? Colors.green : Colors.red, fontWeight: FontWeight.bold)),
+                                      IconButton(
+                                        icon: const Icon(Icons.delete_outline),
+                                        onPressed: () => hapusTransaksi(k),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
       ),
     );
   }
