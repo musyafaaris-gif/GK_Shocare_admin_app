@@ -24,10 +24,12 @@ const String firestoreProjectId = 'gk-shoecare';
 const String firestoreBase =
     'https://firestore.googleapis.com/v1/projects/$firestoreProjectId/databases/(default)/documents';
 
-const List<String> daftarStatus = ['Sudah Diambil', 'Dikerjakan', 'Sudah Selesai'];
+const List<String> daftarStatus = ['Menunggu Verifikasi', 'Sudah Diambil', 'Dikerjakan', 'Sudah Selesai'];
 
 Color warnaStatus(String status) {
   switch (status) {
+    case 'Menunggu Verifikasi':
+      return Colors.red[700]!;
     case 'Dikerjakan':
       return Colors.orange[700]!;
     case 'Sudah Selesai':
@@ -75,10 +77,16 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> cekPin() async {
     final prefs = await SharedPreferences.getInstance();
+    final adaPinTersimpan = prefs.containsKey('admin_pin');
     final pinTersimpan = prefs.getString('admin_pin') ?? '12345';
     if (pinController.text == pinTersimpan) {
       if (!mounted) return;
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const AdminHomePage()));
+      if (!adaPinTersimpan) {
+        // PIN masih default (belum pernah diganti) -> paksa ganti dulu sebelum masuk
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const ForceGantiPinPage()));
+      } else {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const AdminHomePage()));
+      }
     } else {
       setState(() => errorText = 'PIN salah');
     }
@@ -120,6 +128,102 @@ class _LoginPageState extends State<LoginPage> {
                         backgroundColor: Colors.black, foregroundColor: Colors.white, padding: const EdgeInsets.all(16)),
                     onPressed: cekPin,
                     child: const Text('Masuk'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ForceGantiPinPage extends StatefulWidget {
+  const ForceGantiPinPage({super.key});
+
+  @override
+  State<ForceGantiPinPage> createState() => _ForceGantiPinPageState();
+}
+
+class _ForceGantiPinPageState extends State<ForceGantiPinPage> {
+  final pinBaruController = TextEditingController();
+  final pinKonfirmasiController = TextEditingController();
+  String? errorText;
+
+  Future<void> simpanPinBaru() async {
+    if (pinBaruController.text.trim().length < 4) {
+      setState(() => errorText = 'PIN minimal 4 digit');
+      return;
+    }
+    if (pinBaruController.text != pinKonfirmasiController.text) {
+      setState(() => errorText = 'Konfirmasi PIN tidak cocok');
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('admin_pin', pinBaruController.text);
+    if (!mounted) return;
+    Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const AdminHomePage()));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5B315),
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Amankan Akun Admin',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'PIN kamu masih default. Silakan buat PIN baru sebelum melanjutkan.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                TextField(
+                  controller: pinBaruController,
+                  obscureText: true,
+                  keyboardType: TextInputType.number,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 24, letterSpacing: 8),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: Colors.white,
+                    hintText: 'PIN Baru',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: pinKonfirmasiController,
+                  obscureText: true,
+                  keyboardType: TextInputType.number,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 24, letterSpacing: 8),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: Colors.white,
+                    hintText: 'Konfirmasi PIN Baru',
+                    errorText: errorText,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black, foregroundColor: Colors.white, padding: const EdgeInsets.all(16)),
+                    onPressed: simpanPinBaru,
+                    child: const Text('Simpan & Lanjutkan'),
                   ),
                 ),
               ],
@@ -486,6 +590,7 @@ class _DaftarPesananPageState extends State<DaftarPesananPage> {
   }
 
   Future<void> ubahStatus(Pesanan p, String statusBaru) async {
+    final statusLama = p.status;
     setState(() {
       final index = daftarPesanan.indexWhere((x) => x.id == p.id);
       if (index != -1) {
@@ -512,7 +617,7 @@ class _DaftarPesananPageState extends State<DaftarPesananPage> {
     final uri = Uri.parse('$firestoreBase/pesanan/${p.id}').replace(queryParameters: {
       'updateMask.fieldPaths': ['status'],
     });
-    await http.patch(
+    final response = await http.patch(
       uri,
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
@@ -521,6 +626,38 @@ class _DaftarPesananPageState extends State<DaftarPesananPage> {
         }
       }),
     );
+
+    // Kalau gagal di server, kembalikan tampilan ke status lama dan beri tahu admin
+    // supaya data lokal tidak tampak berubah padahal sebenarnya belum tersimpan.
+    if (response.statusCode != 200) {
+      if (!mounted) return;
+      setState(() {
+        final index = daftarPesanan.indexWhere((x) => x.id == p.id);
+        if (index != -1) {
+          daftarPesanan[index] = Pesanan(
+            id: p.id,
+            namaCustomer: p.namaCustomer,
+            noWaCustomer: p.noWaCustomer,
+            jenisBarang: p.jenisBarang,
+            treatment: p.treatment,
+            warnaPutih: p.warnaPutih,
+            jumlah: p.jumlah,
+            hargaSatuan: p.hargaSatuan,
+            subtotal: p.subtotal,
+            tanggalSelesai: p.tanggalSelesai,
+            fotoUrl: p.fotoUrl,
+            status: statusLama,
+            lokerNomor: p.lokerNomor,
+            metodePesan: p.metodePesan,
+            ongkir: p.ongkir,
+            createdAt: p.createdAt,
+          );
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal ubah status (${response.statusCode}), coba lagi.')),
+      );
+    }
   }
 
   Future<void> hapusPesanan(Pesanan p) async {
@@ -536,8 +673,15 @@ class _DaftarPesananPageState extends State<DaftarPesananPage> {
       ),
     );
     if (konfirmasi != true) return;
-    await http.delete(Uri.parse('$firestoreBase/pesanan/${p.id}'));
-    setState(() => daftarPesanan.removeWhere((x) => x.id == p.id));
+    final response = await http.delete(Uri.parse('$firestoreBase/pesanan/${p.id}'));
+    if (response.statusCode == 200 || response.statusCode == 204) {
+      setState(() => daftarPesanan.removeWhere((x) => x.id == p.id));
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal menghapus pesanan (${response.statusCode}), coba lagi.')),
+      );
+    }
   }
 
   @override
