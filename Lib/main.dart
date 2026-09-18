@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 void main() {
   runApp(const AdminApp());
@@ -332,6 +333,17 @@ class AdminHomePage extends StatelessWidget {
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                 onTap: () {
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const KeuanganPage()));
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.contacts),
+                title: const Text('Kontak Customer', style: TextStyle(fontWeight: FontWeight.bold)),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const KontakPage()));
                 },
               ),
             ),
@@ -675,7 +687,7 @@ class _DaftarPesananPageState extends State<DaftarPesananPage> {
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
         'fields': {
-          'jenis': {'stringValue': 'Masuk'},
+          'jenis': {'stringValue': 'masuk'},
           'keterangan': {'stringValue': '${p.namaCustomer} - ${p.treatment} (${p.jenisBarang})'},
           'jumlah': {'integerValue': totalItem.toString()},
           'createdAt': {'timestampValue': DateTime.now().toUtc().toIso8601String()},
@@ -1705,6 +1717,475 @@ class _KeuanganPageState extends State<KeuanganPage> {
                   ),
                 ],
               ),
+      ),
+    );
+  }
+}
+
+class KontakDoc {
+  final String id;
+  final String nama;
+  final String noWa;
+
+  KontakDoc({required this.id, required this.nama, required this.noWa});
+
+  factory KontakDoc.fromFirestore(Map<String, dynamic> doc) {
+    final fields = doc['fields'] as Map<String, dynamic>;
+    final name = doc['name'] as String;
+    return KontakDoc(
+      id: name.split('/').last,
+      nama: fields['nama']?['stringValue'] ?? '',
+      noWa: fields['noWa']?['stringValue'] ?? '',
+    );
+  }
+}
+
+class KontakPage extends StatefulWidget {
+  const KontakPage({super.key});
+
+  @override
+  State<KontakPage> createState() => _KontakPageState();
+}
+
+class _KontakPageState extends State<KontakPage> {
+  List<KontakDoc> daftar = [];
+  bool sedangMemuat = true;
+  bool sedangSinkron = false;
+
+  @override
+  void initState() {
+    super.initState();
+    muatData();
+  }
+
+  Future<void> muatData() async {
+    setState(() => sedangMemuat = true);
+    final response = await http.get(Uri.parse('$firestoreBase/customers'));
+    final data = jsonDecode(response.body);
+    final docs = (data['documents'] as List?) ?? [];
+    final hasil = docs.map((doc) => KontakDoc.fromFirestore(doc)).toList();
+    hasil.sort((a, b) => a.nama.toLowerCase().compareTo(b.nama.toLowerCase()));
+    setState(() {
+      daftar = hasil;
+      sedangMemuat = false;
+    });
+  }
+
+  // Ambil nama & nomor WA dari semua pesanan yang pernah masuk, lalu tambahkan
+  // ke daftar kontak kalau nomor itu belum ada di sana. Aman dipanggil berkali-kali
+  // (tidak akan menduplikasi nomor yang sama).
+  Future<void> sinkronkanDariPesanan() async {
+    setState(() => sedangSinkron = true);
+    try {
+      final resPesanan = await http.get(Uri.parse('$firestoreBase/pesanan'));
+      final dataPesanan = jsonDecode(resPesanan.body);
+      final docsPesanan = (dataPesanan['documents'] as List?) ?? [];
+
+      final Map<String, String> ditemukan = {}; // noWa -> nama (ambil kemunculan terakhir)
+      for (final doc in docsPesanan) {
+        final fields = doc['fields'] as Map<String, dynamic>? ?? {};
+        final nama = fields['namaCustomer']?['stringValue'] ?? '';
+        final noWa = fields['noWaCustomer']?['stringValue'] ?? '';
+        if (noWa.isNotEmpty) ditemukan[noWa] = nama;
+      }
+
+      final noWaSudahAda = daftar.map((k) => k.noWa).toSet();
+      int ditambahkan = 0;
+      for (final entry in ditemukan.entries) {
+        if (noWaSudahAda.contains(entry.key)) continue;
+        await http.post(
+          Uri.parse('$firestoreBase/customers'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'fields': {
+              'nama': {'stringValue': entry.value},
+              'noWa': {'stringValue': entry.key},
+            }
+          }),
+        );
+        ditambahkan++;
+      }
+
+      await muatData();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$ditambahkan kontak baru ditambahkan dari riwayat pesanan')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal sinkronkan kontak: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => sedangSinkron = false);
+    }
+  }
+
+  Future<void> simpanKontak(KontakDoc? existing, String nama, String noWa) async {
+    if (existing == null) {
+      await http.post(
+        Uri.parse('$firestoreBase/customers'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'fields': {
+            'nama': {'stringValue': nama},
+            'noWa': {'stringValue': noWa},
+          }
+        }),
+      );
+    } else {
+      final uri = Uri.parse('$firestoreBase/customers/${existing.id}').replace(queryParameters: {
+        'updateMask.fieldPaths': ['nama', 'noWa'],
+      });
+      await http.patch(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'fields': {
+            'nama': {'stringValue': nama},
+            'noWa': {'stringValue': noWa},
+          }
+        }),
+      );
+    }
+    muatData();
+  }
+
+  Future<void> hapusKontak(KontakDoc k) async {
+    final konfirmasi = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hapus kontak?'),
+        content: Text('${k.nama} (${k.noWa}) akan dihapus dari daftar kontak.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Ya, Hapus')),
+        ],
+      ),
+    );
+    if (konfirmasi != true) return;
+    await http.delete(Uri.parse('$firestoreBase/customers/${k.id}'));
+    setState(() => daftar.removeWhere((x) => x.id == k.id));
+  }
+
+  void bukaFormEdit({KontakDoc? existing}) {
+    final namaController = TextEditingController(text: existing?.nama ?? '');
+    final noWaController = TextEditingController(text: existing?.noWa ?? '');
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          left: 16, right: 16, top: 16,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(existing == null ? 'Tambah Kontak' : 'Edit Kontak',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: namaController,
+              decoration: const InputDecoration(labelText: 'Nama', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: noWaController,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(labelText: 'Nomor WhatsApp', border: OutlineInputBorder(), hintText: '62812xxxxxxxx'),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.black, foregroundColor: Colors.white, padding: const EdgeInsets.all(14)),
+              onPressed: () {
+                final nama = namaController.text.trim();
+                final noWa = noWaController.text.trim();
+                if (nama.isEmpty || noWa.isEmpty) return;
+                simpanKontak(existing, nama, noWa);
+                Navigator.pop(context);
+              },
+              child: const Text('Simpan'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5B315),
+      appBar: AppBar(
+        title: const Text('Kontak Customer'),
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: sedangSinkron
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.sync),
+            tooltip: 'Sinkronkan dari riwayat pesanan',
+            onPressed: sedangSinkron ? null : sinkronkanDariPesanan,
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.black, foregroundColor: Colors.white, padding: const EdgeInsets.all(14)),
+                  onPressed: daftar.isEmpty
+                      ? null
+                      : () {
+                          Navigator.push(context, MaterialPageRoute(builder: (context) => BroadcastPage(kontak: daftar)));
+                        },
+                  icon: const Icon(Icons.campaign),
+                  label: Text('Broadcast ke ${daftar.length} Kontak'),
+                ),
+              ),
+            ),
+            Expanded(
+              child: sedangMemuat
+                  ? const Center(child: CircularProgressIndicator())
+                  : daftar.isEmpty
+                      ? const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(24),
+                            child: Text(
+                              'Belum ada kontak. Tap ikon sinkronisasi di kanan atas untuk mengambil nama & nomor dari riwayat pesanan yang sudah masuk.',
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: daftar.length,
+                          itemBuilder: (context, index) {
+                            final k = daftar[index];
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              child: ListTile(
+                                title: Text(k.nama, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                subtitle: Text(k.noWa),
+                                onTap: () => bukaFormEdit(existing: k),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(icon: const Icon(Icons.edit_outlined), onPressed: () => bukaFormEdit(existing: k)),
+                                    IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red), onPressed: () => hapusKontak(k)),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+            ),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: Colors.black,
+        onPressed: () => bukaFormEdit(),
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
+    );
+  }
+}
+
+class BroadcastPage extends StatefulWidget {
+  final List<KontakDoc> kontak;
+  const BroadcastPage({super.key, required this.kontak});
+
+  @override
+  State<BroadcastPage> createState() => _BroadcastPageState();
+}
+
+class _BroadcastPageState extends State<BroadcastPage> {
+  final pesanController = TextEditingController();
+  late List<bool> terpilih;
+  bool sedangBroadcast = false;
+  int indexSekarang = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    terpilih = List.filled(widget.kontak.length, true);
+  }
+
+  List<KontakDoc> get kontakTerpilih {
+    final hasil = <KontakDoc>[];
+    for (int i = 0; i < widget.kontak.length; i++) {
+      if (terpilih[i]) hasil.add(widget.kontak[i]);
+    }
+    return hasil;
+  }
+
+  Future<void> bukaWaUntuk(KontakDoc k) async {
+    final uri = Uri.parse('https://wa.me/${k.noWa}?text=${Uri.encodeComponent(pesanController.text)}');
+    final berhasil = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!berhasil && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Gagal membuka WhatsApp, pastikan WhatsApp terinstall')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (sedangBroadcast) {
+      final daftar = kontakTerpilih;
+      if (indexSekarang >= daftar.length) {
+        return Scaffold(
+          backgroundColor: const Color(0xFFF5B315),
+          appBar: AppBar(title: const Text('Broadcast Selesai'), backgroundColor: Colors.black, foregroundColor: Colors.white),
+          body: SafeArea(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.check_circle, color: Colors.green, size: 64),
+                    const SizedBox(height: 16),
+                    Text('Selesai kirim ke ${daftar.length} kontak', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                      onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
+                      child: const Text('Selesai'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+
+      final k = daftar[indexSekarang];
+      return Scaffold(
+        backgroundColor: const Color(0xFFF5B315),
+        appBar: AppBar(
+          title: Text('Kirim ${indexSekarang + 1} / ${daftar.length}'),
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+        ),
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Text(k.nama, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                        const SizedBox(height: 4),
+                        Text(k.noWa, style: const TextStyle(color: Colors.grey)),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green[700], foregroundColor: Colors.white, padding: const EdgeInsets.all(16)),
+                  onPressed: () => bukaWaUntuk(k),
+                  icon: const Icon(Icons.chat),
+                  label: const Text('Buka WhatsApp & Kirim'),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton(
+                  onPressed: () => setState(() => indexSekarang++),
+                  child: const Text('Sudah Terkirim, Lanjut →'),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => setState(() => indexSekarang++),
+                  child: const Text('Lewati Kontak Ini'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5B315),
+      appBar: AppBar(title: const Text('Broadcast'), backgroundColor: Colors.black, foregroundColor: Colors.white),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: TextField(
+                controller: pesanController,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Pesan promo',
+                  hintText: 'Contoh: Halo! GK Shoecare lagi ada promo cuci sepatu diskon 20% minggu ini...',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('${kontakTerpilih.length} dari ${widget.kontak.length} kontak dipilih'),
+                  TextButton(
+                    onPressed: () => setState(() {
+                      final semuaTerpilih = terpilih.every((v) => v);
+                      terpilih = List.filled(widget.kontak.length, !semuaTerpilih);
+                    }),
+                    child: const Text('Pilih Semua / Tidak'),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: widget.kontak.length,
+                itemBuilder: (context, index) {
+                  final k = widget.kontak[index];
+                  return CheckboxListTile(
+                    value: terpilih[index],
+                    onChanged: (val) => setState(() => terpilih[index] = val ?? false),
+                    title: Text(k.nama),
+                    subtitle: Text(k.noWa),
+                  );
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.black, foregroundColor: Colors.white, padding: const EdgeInsets.all(16)),
+                  onPressed: (pesanController.text.trim().isEmpty || kontakTerpilih.isEmpty)
+                      ? null
+                      : () => setState(() {
+                            sedangBroadcast = true;
+                            indexSekarang = 0;
+                          }),
+                  child: const Text('Mulai Kirim Satu-Satu'),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
